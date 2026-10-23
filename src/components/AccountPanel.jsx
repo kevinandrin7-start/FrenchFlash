@@ -171,7 +171,7 @@ const SYNC_TEXT = {
   error: 'Couldn’t reach the server. Your progress is kept on this device and will save when you’re back online.',
 }
 
-function Profile({ account, progress, onOpenGuide }) {
+function Profile({ account, progress, onOpenGuide, onOpenExams }) {
   const [changing, setChanging] = useState(false)
   const learned = progress.learned.ids
   const completed = GROUPS.filter((g) => g.ids.every((id) => learned.has(id)))
@@ -215,6 +215,22 @@ function Profile({ account, progress, onOpenGuide }) {
         <span className="text-indigo-200 transition group-hover:translate-x-0.5" aria-hidden="true">→</span>
       </button>
 
+      <button
+        onClick={onOpenExams}
+        className="group flex items-center gap-4 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-slate-900 p-4 text-left ring-1 ring-emerald-400/30 transition hover:ring-emerald-300/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+      >
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-500/25 text-emerald-100">
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M9 4h6M9 4a2 2 0 0 0-2 2v0H5v15h14V6h-2a2 2 0 0 0-2-2M8.5 13l2.5 2.5 4.5-5" />
+          </svg>
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-medium text-white">Sample exams</span>
+          <span className="block text-sm text-slate-400">10 full practice tests with answers, scores and estimated CLB</span>
+        </span>
+        <span className="text-emerald-200 transition group-hover:translate-x-0.5" aria-hidden="true">→</span>
+      </button>
+
       <p className={`flex items-center gap-2 text-sm ${sync.status === 'error' ? 'text-amber-200' : 'text-slate-400'}`}>
         <span className={`h-2 w-2 shrink-0 rounded-full ${sync.status === 'saved' ? 'bg-emerald-400' : sync.status === 'error' ? 'bg-amber-400' : 'bg-slate-500 animate-pulse'}`} />
         <span>
@@ -245,7 +261,7 @@ function Profile({ account, progress, onOpenGuide }) {
   )
 }
 
-export default function AccountPanel({ account, progress, onBack, onOpenGuide }) {
+export default function AccountPanel({ account, progress, onBack, onOpenGuide, onOpenExams }) {
   const title = account.recovering ? 'Reset password' : account.user ? 'Your profile' : 'Your account'
   return (
     <div className="gutter mx-auto max-w-md pb-16 pt-6">
@@ -270,7 +286,7 @@ export default function AccountPanel({ account, progress, onBack, onOpenGuide })
         ) : account.recovering ? (
           <NewPassword account={account} onDone={() => setTimeout(onBack, 1200)} />
         ) : account.user ? (
-          <Profile account={account} progress={progress} onOpenGuide={onOpenGuide} />
+          <Profile account={account} progress={progress} onOpenGuide={onOpenGuide} onOpenExams={onOpenExams} />
         ) : (
           <AuthForms account={account} />
         )}
