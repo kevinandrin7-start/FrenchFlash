@@ -45,7 +45,7 @@ function useForm(run) {
   return { busy, msg, submit }
 }
 
-function AuthForms({ account }) {
+export function AuthForms({ account }) {
   const [tab, setTab] = useState('signin')
   const [email, setEmail] = useState('')
 
@@ -108,7 +108,7 @@ function AuthForms({ account }) {
           {emailField}
           <Field label="Password" name="password" type="password" autoComplete="new-password" minLength={6} required />
           <Field label="Confirm password" name="confirm" type="password" autoComplete="new-password" minLength={6} required />
-          <p className="text-xs text-slate-500">At least 6 characters. Progress already on this device is added to your new account.</p>
+          <p className="text-xs text-slate-500">At least 6 characters.</p>
           {signup.msg && <Notice tone={signup.msg.tone}>{signup.msg.text}</Notice>}
           <button className={primary} disabled={signup.busy}>{signup.busy ? 'Creating account…' : 'Create account'}</button>
         </form>

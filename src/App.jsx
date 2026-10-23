@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import AccountPanel from './components/AccountPanel'
 import DeckSelector from './components/DeckSelector'
 import DeckView from './components/DeckView'
+import Welcome from './components/Welcome'
 import { useAccount } from './lib/account'
 import { useProgress } from './lib/progress'
 import { usePref } from './lib/storage'
@@ -19,6 +20,14 @@ export default function App() {
   useEffect(() => {
     window.scrollTo(0, 0)
   }, [groupIndex, showAccount])
+
+  // Signing out sends you back to the welcome screen; signing in again opens the decks
+  useEffect(() => {
+    if (!account.user && !account.recovering) {
+      setShowAccount(false)
+      setGroupIndex(null)
+    }
+  }, [account.user, account.recovering])
 
   // A password-reset link lands here: go straight to the new-password form
   useEffect(() => {
@@ -40,6 +49,9 @@ export default function App() {
   const available = isExam ? completed : GROUPS.map((g) => g.index)
 
   const open = (i) => setGroupIndex(i)
+
+  // With accounts switched on, nothing is reachable until you sign in
+  if (account.enabled && !account.user && !account.recovering) return <Welcome account={account} />
 
   if (showAccount && account.enabled) {
     return (
