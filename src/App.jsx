@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import AccountPanel from './components/AccountPanel'
 import DeckSelector from './components/DeckSelector'
 import DeckView from './components/DeckView'
+import ExamGuide from './components/ExamGuide'
 import Welcome from './components/Welcome'
 import { useAccount } from './lib/account'
 import { useProgress } from './lib/progress'
@@ -15,16 +16,18 @@ export default function App() {
   const [direction, setDirection] = usePref('tcf-flashcards:direction', 'fr-en')
   const [groupIndex, setGroupIndex] = useState(null)
   const [showAccount, setShowAccount] = useState(false)
+  const [showGuide, setShowGuide] = useState(false)
   const [batchFilter, setBatchFilter] = useState(0)
 
   useEffect(() => {
     window.scrollTo(0, 0)
-  }, [groupIndex, showAccount])
+  }, [groupIndex, showAccount, showGuide])
 
   // Signing out sends you back to the welcome screen; signing in again opens the decks
   useEffect(() => {
     if (!account.user && !account.recovering) {
       setShowAccount(false)
+      setShowGuide(false)
       setGroupIndex(null)
     }
   }, [account.user, account.recovering])
@@ -53,11 +56,14 @@ export default function App() {
   // With accounts switched on, nothing is reachable until you sign in
   if (account.enabled && !account.user && !account.recovering) return <Welcome account={account} />
 
+  if (showGuide) return <ExamGuide onBack={() => setShowGuide(false)} />
+
   if (showAccount && account.enabled) {
     return (
       <AccountPanel
         account={account}
         progress={progress}
+        onOpenGuide={() => setShowGuide(true)}
         onBack={() => {
           account.cancelRecovery()
           setShowAccount(false)
