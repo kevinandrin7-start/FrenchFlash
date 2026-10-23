@@ -203,6 +203,7 @@ function Profile({ account, progress }) {
         <span className={`h-2 w-2 shrink-0 rounded-full ${sync.status === 'saved' ? 'bg-emerald-400' : sync.status === 'error' ? 'bg-amber-400' : 'bg-slate-500 animate-pulse'}`} />
         <span>
           {SYNC_TEXT[sync.status]}
+          {sync.status === 'error' && sync.message && <span className="mt-1 block font-mono text-xs text-amber-200/70">Details: {sync.message}</span>}
           {sync.status === 'saved' && sync.at && <span className="text-slate-500"> · {sync.at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>}
         </span>
       </p>
