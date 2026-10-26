@@ -95,13 +95,13 @@ export default function DeckView({ mode, direction, groupIndex, known: learned, 
         <button
           onClick={onBack}
           className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-800/80 text-slate-300 ring-1 ring-white/10 transition hover:bg-slate-700 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
-          aria-label="Back to all groups"
+          aria-label="Back to all levels"
         >
           <Icon d={ICONS.back} />
         </button>
         <div className="min-w-0 flex-1">
           <h1 className="flex items-center gap-2 font-display text-xl font-semibold leading-tight text-white">
-            Group {groupIndex}
+            Level {groupIndex}
             {isExam && (
               <span className="rounded-full bg-amber-400/15 px-2 py-0.5 font-sans text-[11px] font-medium uppercase tracking-wider text-amber-200 ring-1 ring-amber-300/30">
                 Exam · {direction === 'fr-en' ? 'FR → EN' : 'EN → FR'}
@@ -135,7 +135,7 @@ export default function DeckView({ mode, direction, groupIndex, known: learned, 
       {/* Reset confirm */}
       {confirmReset && (
         <div className="mt-3 flex flex-wrap items-center gap-3 rounded-2xl bg-rose-500/10 p-3 text-sm ring-1 ring-rose-400/30 animate-fade-up">
-          <p className="min-w-0 flex-1 text-rose-100">{isExam ? "Put all 50 cards back and clear this group's exam score for this direction?" : "Put all 50 cards back into rotation and clear this group's learned progress?"}</p>
+          <p className="min-w-0 flex-1 text-rose-100">{isExam ? "Put all 50 cards back and clear this level's exam score for this direction?" : "Put all 50 cards back into rotation and clear this level's learned progress?"}</p>
           <div className="flex gap-2">
             <button onClick={() => setConfirmReset(false)} className="rounded-full px-3 py-1.5 text-slate-300 hover:text-white">
               Cancel
@@ -155,13 +155,13 @@ export default function DeckView({ mode, direction, groupIndex, known: learned, 
               <Icon d={ICONS.check} className="h-8 w-8" />
             </div>
             <div>
-              <h2 className="font-display text-2xl font-semibold text-white">Group {groupIndex} {isExam ? 'exam passed' : 'mastered'}</h2>
+              <h2 className="font-display text-2xl font-semibold text-white">Level {groupIndex} {isExam ? 'exam passed' : 'mastered'}</h2>
               <p className="mt-2 text-slate-300">{isExam ? 'You got all 50 words right.' : 'All 50 words are marked as learned.'}</p>
             </div>
             <div className="flex flex-wrap justify-center gap-3">
               {nextIndex && (
                 <button onClick={() => onOpenGroup(nextIndex)} className="rounded-full bg-indigo-500 px-5 py-2.5 font-medium text-white hover:bg-indigo-400">
-                  {isExam ? 'Exam for' : 'Start'} group {nextIndex}
+                  {isExam ? 'Exam for' : 'Start'} level {nextIndex}
                 </button>
               )}
               <button onClick={() => setConfirmReset(true)} className="rounded-full bg-slate-800 px-5 py-2.5 text-slate-200 ring-1 ring-white/10 hover:bg-slate-700">

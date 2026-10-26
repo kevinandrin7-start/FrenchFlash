@@ -1,7 +1,7 @@
 import { AuthForms } from './AccountPanel'
 
 const FEATURES = [
-  ['6,250 words', '125 decks of 50, from greetings to advanced TCF vocabulary'],
+  ['6,250 words', '125 levels of 50, from greetings to advanced TCF vocabulary'],
   ['Swipe to learn', 'Right when you know it, left to see it again'],
   ['Exam mode', 'Test yourself French → English or English → French'],
   ['Hear every word', 'Native French audio, plus an example sentence for each card'],
@@ -56,7 +56,7 @@ export default function Welcome({ account }) {
             French<span className="italic text-indigo-300">Flash</span>
           </h1>
           <p className="mt-4 max-w-md text-base leading-relaxed text-slate-300">
-            Build the vocabulary you need for the TCF, one swipe at a time. Learn each deck, then prove it in exam mode. Your progress follows you on every device.
+            Build the vocabulary you need for the TCF, one swipe at a time. Learn each level, then prove it in exam mode. Your progress follows you on every device.
           </p>
         </header>
 

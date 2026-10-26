@@ -15,7 +15,7 @@ function GroupCard({ group, count, onOpen, unit }) {
       }`}
     >
       <div className="flex items-baseline justify-between gap-2">
-        <span className="font-display text-lg font-semibold text-white tabular">Group {group.index}</span>
+        <span className="font-display text-lg font-semibold text-white tabular">Level {group.index}</span>
         <span className="font-mono text-[11px] text-slate-500 tabular">
           {fmt(group.from)}–{fmt(group.to)}
         </span>
@@ -133,9 +133,9 @@ export default function DeckSelector({ mode, setMode, direction, setDirection, k
           <p className="mt-3 max-w-md text-sm leading-relaxed text-slate-400">
             {isExam
               ? direction === 'fr-en'
-                ? 'See the French, recall the English. Only groups you have fully learned appear here. Swipe right if you got it, left to try again.'
-                : 'See the English, recall the French. Only groups you have fully learned appear here. Swipe right if you got it, left to try again.'
-              : '6,250 words in 125 decks of 50. Swipe right when you know a word, left to see it again.'}
+                ? 'See the French, recall the English. Only levels you have fully learned appear here. Swipe right if you got it, left to try again.'
+                : 'See the English, recall the French. Only levels you have fully learned appear here. Swipe right if you got it, left to try again.'
+              : '6,250 words in 125 levels of 50. Swipe right when you know a word, left to see it again.'}
           </p>
         </div>
 
@@ -143,7 +143,7 @@ export default function DeckSelector({ mode, setMode, direction, setDirection, k
           <div className="flex items-baseline justify-between">
             <span className="text-xs uppercase tracking-wider text-slate-400">{isExam ? 'Correct' : 'Mastered'}</span>
             <span className="text-xs text-slate-500 tabular">
-              {groupsDone} / {pool.length} {isExam ? 'passed' : 'decks'}
+              {groupsDone} / {pool.length} {isExam ? 'passed' : 'levels'}
             </span>
           </div>
           <p className="mt-1 font-display text-3xl font-semibold text-white tabular">
@@ -165,7 +165,7 @@ export default function DeckSelector({ mode, setMode, direction, setDirection, k
                   : 'bg-indigo-500 text-white hover:bg-indigo-400 focus-visible:ring-indigo-300'
               }`}
             >
-              {counts[resume.index - 1] > 0 ? 'Continue' : 'Start'} {isExam ? 'exam for ' : ''}group {resume.index}
+              {counts[resume.index - 1] > 0 ? 'Continue' : 'Start'} {isExam ? 'exam for ' : ''}level {resume.index}
             </button>
           )}
         </div>
@@ -173,9 +173,9 @@ export default function DeckSelector({ mode, setMode, direction, setDirection, k
 
       {isExam && pool.length === 0 ? (
         <div className="mt-10 rounded-2xl bg-slate-900 p-8 text-center ring-1 ring-white/[0.07]">
-          <h2 className="font-display text-2xl font-semibold text-white">No groups to test yet</h2>
+          <h2 className="font-display text-2xl font-semibold text-white">No levels to test yet</h2>
           <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-slate-400">
-            A group appears here once all 50 of its words are marked learned in Learning mode.
+            A level appears here once all 50 of its words are marked learned in Learning mode.
           </p>
           <button
             onClick={() => setMode('learn')}
@@ -187,7 +187,7 @@ export default function DeckSelector({ mode, setMode, direction, setDirection, k
       ) : (
         <>
           <nav className="-mx-1 mt-8 flex gap-2 overflow-x-auto px-1 pb-2" aria-label="Filter by batch">
-            {[{ n: 0, name: isExam ? `All unlocked (${pool.length})` : 'All 125 decks' }, ...BATCHES]
+            {[{ n: 0, name: isExam ? `All unlocked (${pool.length})` : 'All 125 levels' }, ...BATCHES]
               .filter((b) => !b.n || pool.some((g) => g.batch === b.n))
               .map((b) => {
                 const active = batch === b.n
@@ -217,12 +217,12 @@ export default function DeckSelector({ mode, setMode, direction, setDirection, k
               <GroupCard key={g.index} group={g} count={counts[g.index - 1]} onOpen={onOpen} unit={unit} />
             ))}
           </div>
-          {shown.length === 0 && <p className="mt-6 text-sm text-slate-500">No completed groups in this batch yet.</p>}
+          {shown.length === 0 && <p className="mt-6 text-sm text-slate-500">No completed levels in this batch yet.</p>}
         </>
       )}
 
       <footer className="mt-12 text-xs leading-relaxed text-slate-500">
-        Word list, pronunciation cues and meanings from your <em>French Vocabulary for the TCF Exam</em> guide. {account?.user ? 'Learning and exam progress are saved to your account.' : 'Learning and exam progress are saved separately in this browser.'}
+        Word list, pronunciation cues and meanings from the <em>French Vocabulary for the TCF Exam</em> guide. {account?.user ? 'Learning and exam progress are saved to your account.' : 'Learning and exam progress are saved separately in this browser.'}
       </footer>
     </div>
   )

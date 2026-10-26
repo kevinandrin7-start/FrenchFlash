@@ -171,7 +171,67 @@ const SYNC_TEXT = {
   error: 'Couldn’t reach the server. Your progress is kept on this device and will save when you’re back online.',
 }
 
-function Profile({ account, progress, onOpenGuide, onOpenExams }) {
+function Toggle({ label, hint, checked, onChange }) {
+  return (
+    <label className="flex cursor-pointer items-center gap-4">
+      <span className="min-w-0 flex-1">
+        <span className="block font-medium text-white">{label}</span>
+        <span className="block text-sm text-slate-400">{hint}</span>
+      </span>
+      <input type="checkbox" role="switch" className="peer sr-only" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <span
+        aria-hidden="true"
+        className="relative h-7 w-12 shrink-0 rounded-full bg-slate-700 ring-1 ring-white/10 transition peer-checked:bg-indigo-500 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-300 after:absolute after:left-1 after:top-1 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition peer-checked:after:translate-x-5"
+      />
+    </label>
+  )
+}
+
+const BUILT = new Date(__BUILD_DATE__).toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' })
+
+function About() {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="rounded-2xl bg-slate-950/50 ring-1 ring-white/5">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-4 rounded-2xl p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+      >
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-slate-800 text-slate-200">
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 11v5M12 8h.01" />
+          </svg>
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-medium text-white">About FrenchFlash</span>
+          <span className="block text-sm text-slate-400">What the app does, version and creator</span>
+        </span>
+        <span className={`text-slate-300 transition ${open ? 'rotate-90' : ''}`} aria-hidden="true">→</span>
+      </button>
+      {open && (
+        <div className="flex flex-col gap-4 px-4 pb-4 animate-fade-up">
+          <p className="text-sm leading-relaxed text-slate-300">
+            FrenchFlash helps you build the vocabulary for the TCF Canada exam, aiming for CLB 7. It holds 6,250 words in 125 levels of 50. Swipe through each
+            level until every word is learned, then test yourself in exam mode in both directions. It also includes a guide to the TCF format and 10 full sample
+            exams, and your progress syncs to your account on every device.
+          </p>
+          <dl className="grid grid-cols-[auto,1fr] gap-x-6 gap-y-2 text-sm">
+            <dt className="text-slate-400">Version</dt>
+            <dd className="text-white tabular">{__APP_VERSION__}</dd>
+            <dt className="text-slate-400">Last updated</dt>
+            <dd className="text-white">{BUILT}</dd>
+            <dt className="text-slate-400">Created by</dt>
+            <dd className="text-white">Kevin Andrin</dd>
+          </dl>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Profile({ account, progress, theme, setTheme, onOpenGuide, onOpenExams }) {
   const [changing, setChanging] = useState(false)
   const learned = progress.learned.ids
   const completed = GROUPS.filter((g) => g.ids.every((id) => learned.has(id)))
@@ -194,7 +254,7 @@ function Profile({ account, progress, onOpenGuide, onOpenExams }) {
 
       <div className="grid grid-cols-2 gap-3">
         <Stat label="Words learned" value={learned.size} of={WORDS.length} />
-        <Stat label="Groups completed" value={completed.length} of={GROUPS.length} />
+        <Stat label="Levels completed" value={completed.length} of={GROUPS.length} />
         <Stat label="Exam FR → EN" value={inCompleted(progress['fr-en'].ids)} of={examWords} />
         <Stat label="Exam EN → FR" value={inCompleted(progress['en-fr'].ids)} of={examWords} />
       </div>
@@ -231,6 +291,19 @@ function Profile({ account, progress, onOpenGuide, onOpenExams }) {
         <span className="text-emerald-200 transition group-hover:translate-x-0.5" aria-hidden="true">→</span>
       </button>
 
+      <section aria-labelledby="settings-heading" className="flex flex-col gap-3">
+        <h2 id="settings-heading" className="text-xs font-medium uppercase tracking-wider text-slate-400">Settings</h2>
+        <div className="rounded-2xl bg-slate-950/50 p-4 ring-1 ring-white/5">
+          <Toggle
+            label="Liquid glass look"
+            hint="Frosted, translucent cards over a colourful background"
+            checked={theme === 'glass'}
+            onChange={(on) => setTheme(on ? 'glass' : 'classic')}
+          />
+        </div>
+        <About />
+      </section>
+
       <p className={`flex items-center gap-2 text-sm ${sync.status === 'error' ? 'text-amber-200' : 'text-slate-400'}`}>
         <span className={`h-2 w-2 shrink-0 rounded-full ${sync.status === 'saved' ? 'bg-emerald-400' : sync.status === 'error' ? 'bg-amber-400' : 'bg-slate-500 animate-pulse'}`} />
         <span>
@@ -261,7 +334,7 @@ function Profile({ account, progress, onOpenGuide, onOpenExams }) {
   )
 }
 
-export default function AccountPanel({ account, progress, onBack, onOpenGuide, onOpenExams }) {
+export default function AccountPanel({ account, progress, theme, setTheme, onBack, onOpenGuide, onOpenExams }) {
   const title = account.recovering ? 'Reset password' : account.user ? 'Your profile' : 'Your account'
   return (
     <div className="gutter mx-auto max-w-md pb-16 pt-6">
@@ -269,7 +342,7 @@ export default function AccountPanel({ account, progress, onBack, onOpenGuide, o
         <button
           onClick={onBack}
           className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-800/80 text-slate-300 ring-1 ring-white/10 transition hover:bg-slate-700 hover:text-white"
-          aria-label="Back to decks"
+          aria-label="Back to levels"
         >
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M15 18l-6-6 6-6" />
@@ -286,7 +359,7 @@ export default function AccountPanel({ account, progress, onBack, onOpenGuide, o
         ) : account.recovering ? (
           <NewPassword account={account} onDone={() => setTimeout(onBack, 1200)} />
         ) : account.user ? (
-          <Profile account={account} progress={progress} onOpenGuide={onOpenGuide} onOpenExams={onOpenExams} />
+          <Profile account={account} progress={progress} theme={theme} setTheme={setTheme} onOpenGuide={onOpenGuide} onOpenExams={onOpenExams} />
         ) : (
           <AuthForms account={account} />
         )}
