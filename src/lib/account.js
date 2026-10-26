@@ -1,19 +1,34 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase'
 import { isDirty, setDirty } from './progress'
+import { mergeSrs, mergeStats } from './srs'
 
 const TABLE = 'progress'
 const SAVE_DELAY = 1200
 
-const toRow = (userId, snap) => ({
+const toRow = (userId, snap, legacy) => ({
   user_id: userId,
   learned: snap.learned,
   exam_fr_en: snap['fr-en'],
   exam_en_fr: snap['en-fr'],
+  ...(legacy ? {} : { srs: snap.srs, stats: snap.stats }),
   updated_at: new Date().toISOString(),
 })
-const fromRow = (row) => ({ learned: row.learned || [], 'fr-en': row.exam_fr_en || [], 'en-fr': row.exam_en_fr || [] })
-const union = (a, b) => Object.fromEntries(Object.keys(a).map((k) => [k, [...new Set([...a[k], ...(b[k] || [])])]]))
+// A database set up before the review schedule existed has no srs/stats columns: keep this device's copy
+const fromRow = (row, local) => ({
+  learned: row.learned || [],
+  'fr-en': row.exam_fr_en || [],
+  'en-fr': row.exam_en_fr || [],
+  srs: row.srs ?? local.srs,
+  stats: row.stats ?? local.stats,
+})
+const union = (a, b) => ({
+  ...Object.fromEntries(['learned', 'fr-en', 'en-fr'].map((k) => [k, [...new Set([...a[k], ...(b[k] || [])])]])),
+  srs: mergeSrs(a.srs, b.srs),
+  stats: mergeStats(a.stats, b.stats),
+})
+// PostgREST names the missing column when the table predates the srs/stats columns
+const missingColumn = (error) => /\b(srs|stats)\b/.test(error?.message || '') && /column/i.test(error?.message || '')
 
 // Signed-in user + syncing progress to the `progress` table.
 // Server copy wins on load, except when this device has edits it never managed to save.
@@ -24,6 +39,8 @@ export function useAccount(progress) {
   const [ready, setReady] = useState(!enabled)
   const [recovering, setRecovering] = useState(false)
   const [sync, setSync] = useState({ status: 'idle', at: null })
+  const [legacy, setLegacy] = useState(false)
+  const legacyRef = useRef(false)
   const loadedFor = useRef(null)
   const mergeNext = useRef(false)
   const progressRef = useRef(progress)
@@ -50,7 +67,13 @@ export function useAccount(progress) {
   const save = useCallback(async (snap) => {
     if (!user || loadedFor.current !== user.id) return
     setSync((s) => ({ ...s, status: 'saving' }))
-    const { error } = await supabase.from(TABLE).upsert(toRow(user.id, snap?.learned ? snap : progressRef.current.snapshot()))
+    const data = snap?.learned ? snap : progressRef.current.snapshot()
+    let { error } = await supabase.from(TABLE).upsert(toRow(user.id, data, legacyRef.current))
+    if (error && !legacyRef.current && missingColumn(error)) {
+      legacyRef.current = true
+      setLegacy(true)
+      ;({ error } = await supabase.from(TABLE).upsert(toRow(user.id, data, true)))
+    }
     if (error) return setSync((s) => ({ ...s, status: 'error', message: error.message }))
     setDirty(false)
     setSync({ status: 'saved', at: new Date() })
@@ -64,16 +87,20 @@ export function useAccount(progress) {
     const local = progressRef.current.snapshot()
     const first = loadedFor.current !== user.id
     loadedFor.current = user.id
+    if (row && !('srs' in row) && !legacyRef.current) {
+      legacyRef.current = true
+      setLegacy(true)
+    }
     if (!row) return save() // new account: start it from whatever is on this device
     if (first && mergeNext.current) {
       mergeNext.current = false
-      const merged = union(fromRow(row), local)
+      const merged = union(fromRow(row, local), local)
       progressRef.current.replaceAll(merged)
       save(merged)
     } else if (isDirty()) {
       save() // this device has unsaved edits: they win
     } else {
-      progressRef.current.replaceAll(fromRow(row))
+      progressRef.current.replaceAll(fromRow(row, local))
       setSync({ status: 'saved', at: new Date(row.updated_at || Date.now()) })
     }
   }, [user, save])
@@ -105,6 +132,7 @@ export function useAccount(progress) {
     ready,
     user,
     sync,
+    legacy, // true until the database gets the srs/stats columns (see supabase/schema.sql)
     recovering,
     signUp: async (email, password) => {
       mergeNext.current = true

@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { BATCHES, GROUPS, GROUP_SIZE, WORDS, fmt } from '../lib/words'
+import { doneOn, goalOf, streak } from '../lib/srs'
 
 function GroupCard({ group, count, onOpen, unit }) {
   const pct = (count / GROUP_SIZE) * 100
@@ -92,7 +93,59 @@ function AccountButton({ account, onClick }) {
   )
 }
 
-export default function DeckSelector({ mode, setMode, direction, setDirection, known, available, onOpen, batch, setBatch, account, onAccount }) {
+// Streak, today's progress toward the daily goal, and the spaced-repetition review
+function StudyStrip({ stats, dueCount, onReview }) {
+  const goal = goalOf(stats)
+  const today = doneOn(stats)
+  const days = streak(stats)
+  const met = today >= goal
+  const pct = Math.min(100, (today / goal) * 100)
+  return (
+    <section aria-label="Daily study" className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div className="flex items-center gap-3 rounded-2xl bg-slate-900 p-4 ring-1 ring-white/[0.07]">
+        <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl text-2xl ${days ? 'bg-orange-500/20' : 'bg-slate-800 grayscale'}`} aria-hidden="true">
+          🔥
+        </span>
+        <div className="min-w-0">
+          <p className="font-display text-2xl font-semibold leading-none text-white tabular">{days}</p>
+          <p className="mt-1 text-xs text-slate-400">day streak</p>
+        </div>
+      </div>
+      <div className="rounded-2xl bg-slate-900 p-4 ring-1 ring-white/[0.07]">
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="text-xs uppercase tracking-wider text-slate-400">Today</span>
+          {met && <span className="text-xs font-medium text-emerald-300">Goal met ✓</span>}
+        </div>
+        <p className="mt-1 font-display text-2xl font-semibold leading-none text-white tabular">
+          {today}
+          <span className="text-sm font-normal text-slate-500"> / {goal} cards</span>
+        </p>
+        <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-slate-800">
+          <div className={`h-full rounded-full transition-[width] duration-500 ${met ? 'bg-emerald-400' : 'bg-gradient-to-r from-orange-400 to-amber-300'}`} style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+      <button
+        onClick={onReview}
+        disabled={!dueCount}
+        className="col-span-2 flex items-center gap-3 rounded-2xl bg-slate-900 p-4 text-left ring-1 ring-white/[0.07] transition enabled:hover:bg-slate-800 enabled:hover:ring-indigo-400/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 sm:col-span-1"
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block text-xs uppercase tracking-wider text-slate-400">Review</span>
+          <span className="mt-1 block font-display text-2xl font-semibold leading-none text-white tabular">
+            {fmt(dueCount)}
+            <span className="text-sm font-normal text-slate-500"> due</span>
+          </span>
+          <span className="mt-1.5 block text-xs text-slate-500">{dueCount ? 'Learned words ready to see again' : 'Nothing due. Learned words come back here.'}</span>
+        </span>
+        {dueCount > 0 && (
+          <span className="shrink-0 rounded-full bg-indigo-500 px-4 py-2 text-sm font-medium text-white">Review</span>
+        )}
+      </button>
+    </section>
+  )
+}
+
+export default function DeckSelector({ mode, setMode, direction, setDirection, known, available, onOpen, batch, setBatch, account, onAccount, stats, dueCount, onReview }) {
   const isExam = mode === 'exam'
   const unit = isExam ? 'correct' : 'mastered'
   const counts = useMemo(() => GROUPS.map((g) => g.ids.reduce((n, id) => n + (known.has(id) ? 1 : 0), 0)), [known])
@@ -170,6 +223,8 @@ export default function DeckSelector({ mode, setMode, direction, setDirection, k
           )}
         </div>
       </header>
+
+      <StudyStrip stats={stats} dueCount={dueCount} onReview={onReview} />
 
       {isExam && pool.length === 0 ? (
         <div className="mt-10 rounded-2xl bg-slate-900 p-8 text-center ring-1 ring-white/[0.07]">

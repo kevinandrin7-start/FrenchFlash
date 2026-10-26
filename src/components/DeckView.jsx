@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import SwipeCard from './SwipeCard'
-import { GROUPS, GROUP_SIZE, fmt } from '../lib/words'
+import { GROUPS, WORD_BY_ID, fmt } from '../lib/words'
+import { AGAIN_GAP, entryFor, schedule } from '../lib/srs'
 
 let uidCounter = 0
 const entry = (id) => ({ id, uid: ++uidCounter })
@@ -22,42 +23,78 @@ const ICONS = {
   reset: 'M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6',
 }
 
-export default function DeckView({ mode, direction, groupIndex, known: learned, markKnown: markLearned, unmark, resetIds, nextIndex, onBack, onOpenGroup }) {
-  const isExam = mode === 'exam'
-  const L = isExam
-    ? { done: 'correct', left: 'Again', right: 'Got it', leftStamp: 'AGAIN', rightStamp: 'GOT IT' }
-    : { done: 'learned', left: 'Keep', right: 'Learned', leftStamp: 'KEEP', rightStamp: 'LEARNED' }
-  const group = GROUPS[groupIndex - 1]
-  const byId = useRef(Object.fromEntries(group.words.map((w) => [w.id, w])))
-  const [queue, setQueue] = useState(() => group.ids.filter((id) => !learned.has(id)).map(entry))
+const STUDY_LABELS = { fr: null, en: 'EN → FR', audio: 'Listening' }
+
+// One deck of cards: a level (Learning or Exam), or the spaced-repetition Review of words due today.
+// Every swipe counts toward the daily goal; in Learning and Review it also sets the word's next review.
+export default function DeckView({
+  mode,
+  direction,
+  study,
+  groupIndex,
+  reviewIds,
+  known: learned,
+  markKnown: markLearned,
+  unmark,
+  resetIds,
+  progress,
+  nextIndex,
+  onBack,
+  onOpenGroup,
+}) {
+  const isReview = groupIndex === 'review'
+  const isExam = mode === 'exam' && !isReview
+  const L = isReview
+    ? { done: 'reviewed', left: 'Again', right: 'Knew it', leftStamp: 'AGAIN', rightStamp: 'KNEW IT' }
+    : isExam
+      ? { done: 'correct', left: 'Again', right: 'Got it', leftStamp: 'AGAIN', rightStamp: 'GOT IT' }
+      : { done: 'learned', left: 'Keep', right: 'Learned', leftStamp: 'KEEP', rightStamp: 'LEARNED' }
+  const group = isReview ? null : GROUPS[groupIndex - 1]
+  const deckIds = useRef(isReview ? reviewIds : group.ids).current
+  const [queue, setQueue] = useState(() => (isReview ? deckIds : deckIds.filter((id) => !learned.has(id))).map(entry))
   const [history, setHistory] = useState([])
   const [confirmReset, setConfirmReset] = useState(false)
   const topRef = useRef(null)
+  const missed = useRef(new Set()) // missed in this session: a later "knew it" only earns the first interval
 
-  const learnedCount = group.ids.filter((id) => learned.has(id)).length
-  const pct = (learnedCount / GROUP_SIZE) * 100
+  const remaining = new Set(queue.map((e) => e.id)).size
+  const doneCount = isReview ? deckIds.length - remaining : deckIds.filter((id) => learned.has(id)).length
+  const total = deckIds.length
+  const pct = total ? (doneCount / total) * 100 : 0
 
   const queueRef = useRef(queue)
   queueRef.current = queue
+  const srsRef = useRef(progress.srs)
+  srsRef.current = progress.srs
 
   const handleSwipe = useCallback(
     (dir) => {
       const q = queueRef.current
       if (!q.length) return
       const [top, ...rest] = q
-      setHistory((h) => [...h.slice(-30), { queue: q, learnedId: dir > 0 ? top.id : null }])
-      if (dir > 0) markLearned(top.id)
-      const nextQueue = dir > 0 ? rest : [...rest, entry(top.id)] // Keep: back of the deck
+      const knew = dir > 0
+      const id = top.id
+      const prevSrs = srsRef.current[id] || null
+      const schedules = isReview || (!isExam && knew)
+      setHistory((h) => [...h.slice(-30), { queue: q, learnedId: knew && !isReview ? id : null, srs: schedules ? { id, prev: prevSrs } : null }])
+      progress.countCard(1)
+      if (schedules) progress.setSrs(id, schedule(isReview ? entryFor(srsRef.current, id) : prevSrs, knew, missed.current.has(id)))
+      if (knew && !isReview) markLearned(id)
+      if (!knew) missed.current.add(id)
+      // A miss comes back after a few cards instead of at the end of the deck
+      const nextQueue = knew ? rest : [...rest.slice(0, AGAIN_GAP), entry(id), ...rest.slice(AGAIN_GAP)]
       queueRef.current = nextQueue
       setQueue(nextQueue)
     },
-    [markLearned]
+    [markLearned, progress, isReview, isExam]
   )
 
   const undo = () => {
     const last = history[history.length - 1]
     if (!last) return
     if (last.learnedId != null) unmark(last.learnedId)
+    if (last.srs) progress.setSrs(last.srs.id, last.srs.prev)
+    progress.countCard(-1)
     setQueue(last.queue.map((e) => entry(e.id)))
     setHistory((h) => h.slice(0, -1))
   }
@@ -74,7 +111,10 @@ export default function DeckView({ mode, direction, groupIndex, known: learned, 
       if (e.target.closest?.('input,textarea')) return
       if (e.key === 'ArrowRight') topRef.current?.fly(1)
       else if (e.key === 'ArrowLeft') topRef.current?.fly(-1)
-      else if (e.key === ' ' || e.key === 'Enter' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      else if (e.key === 'Enter' && e.target.tagName !== 'BUTTON') {
+        e.preventDefault()
+        topRef.current?.enter()
+      } else if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
         if (e.target.tagName === 'BUTTON' && (e.key === ' ' || e.key === 'Enter')) return
         e.preventDefault()
         topRef.current?.flip()
@@ -100,25 +140,32 @@ export default function DeckView({ mode, direction, groupIndex, known: learned, 
           <Icon d={ICONS.back} />
         </button>
         <div className="min-w-0 flex-1">
-          <h1 className="flex items-center gap-2 font-display text-xl font-semibold leading-tight text-white">
-            Level {groupIndex}
+          <h1 className="flex flex-wrap items-center gap-2 font-display text-xl font-semibold leading-tight text-white">
+            {isReview ? 'Review' : `Level ${groupIndex}`}
             {isExam && (
               <span className="rounded-full bg-amber-400/15 px-2 py-0.5 font-sans text-[11px] font-medium uppercase tracking-wider text-amber-200 ring-1 ring-amber-300/30">
                 Exam · {direction === 'fr-en' ? 'FR → EN' : 'EN → FR'}
               </span>
             )}
+            {[!isExam && STUDY_LABELS[study.prompt], study.typing && 'Typing'].filter(Boolean).map((t) => (
+              <span key={t} className="rounded-full bg-indigo-400/15 px-2 py-0.5 font-sans text-[11px] font-medium uppercase tracking-wider text-indigo-200 ring-1 ring-indigo-300/30">
+                {t}
+              </span>
+            ))}
           </h1>
           <p className="truncate text-xs text-slate-400 tabular">
-            Words {fmt(group.from)}–{fmt(group.to)} · {group.sections.join(' · ')}
+            {isReview
+              ? 'Words you learned that are due today. Misses come back sooner.'
+              : `Words ${fmt(group.from)}–${fmt(group.to)} · ${group.sections.join(' · ')}`}
           </p>
         </div>
-        <button
+        {!isReview && <button
           onClick={() => setConfirmReset(true)}
           className="flex shrink-0 items-center gap-1.5 rounded-full bg-slate-800/80 px-3.5 py-2 text-sm text-slate-300 ring-1 ring-white/10 transition hover:bg-slate-700 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
         >
           <Icon d={ICONS.reset} className="h-4 w-4" />
           <span>Reset</span>
-        </button>
+        </button>}
       </header>
 
       {/* Progress */}
@@ -127,7 +174,7 @@ export default function DeckView({ mode, direction, groupIndex, known: learned, 
           <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-300 transition-[width] duration-500" style={{ width: `${pct}%` }} />
         </div>
         <span className="text-sm text-slate-300 tabular">
-          <span className="font-semibold text-emerald-300">{learnedCount}</span> / {GROUP_SIZE} {L.done}
+          <span className="font-semibold text-emerald-300">{doneCount}</span> / {total} {L.done}
         </span>
       </div>
       <p className="mt-1.5 text-xs text-slate-500 tabular">{queue.length} cards left in rotation</p>
@@ -155,18 +202,33 @@ export default function DeckView({ mode, direction, groupIndex, known: learned, 
               <Icon d={ICONS.check} className="h-8 w-8" />
             </div>
             <div>
-              <h2 className="font-display text-2xl font-semibold text-white">Level {groupIndex} {isExam ? 'exam passed' : 'mastered'}</h2>
-              <p className="mt-2 text-slate-300">{isExam ? 'You got all 50 words right.' : 'All 50 words are marked as learned.'}</p>
+              <h2 className="font-display text-2xl font-semibold text-white">
+                {isReview ? 'Review done' : `Level ${groupIndex} ${isExam ? 'exam passed' : 'mastered'}`}
+              </h2>
+              <p className="mt-2 text-slate-300">
+                {isReview
+                  ? `${total} words reviewed. The ones you knew come back in a few days, the rest sooner.`
+                  : isExam
+                    ? 'You got all 50 words right.'
+                    : 'All 50 words are marked as learned. They will come back in Review in a few days.'}
+              </p>
             </div>
             <div className="flex flex-wrap justify-center gap-3">
+              {isReview && (
+                <button onClick={onBack} className="rounded-full bg-indigo-500 px-5 py-2.5 font-medium text-white hover:bg-indigo-400">
+                  Back to levels
+                </button>
+              )}
               {nextIndex && (
                 <button onClick={() => onOpenGroup(nextIndex)} className="rounded-full bg-indigo-500 px-5 py-2.5 font-medium text-white hover:bg-indigo-400">
                   {isExam ? 'Exam for' : 'Start'} level {nextIndex}
                 </button>
               )}
-              <button onClick={() => setConfirmReset(true)} className="rounded-full bg-slate-800 px-5 py-2.5 text-slate-200 ring-1 ring-white/10 hover:bg-slate-700">
-                {isExam ? 'Retake exam' : 'Study again'}
-              </button>
+              {!isReview && (
+                <button onClick={() => setConfirmReset(true)} className="rounded-full bg-slate-800 px-5 py-2.5 text-slate-200 ring-1 ring-white/10 hover:bg-slate-700">
+                  {isExam ? 'Retake exam' : 'Study again'}
+                </button>
+              )}
             </div>
           </div>
         ) : (
@@ -175,11 +237,12 @@ export default function DeckView({ mode, direction, groupIndex, known: learned, 
               <SwipeCard
                 key={e.uid}
                 ref={depth === 0 ? topRef : undefined}
-                word={byId.current[e.id]}
+                word={WORD_BY_ID[e.id]}
                 depth={depth}
                 onSwipe={handleSwipe}
                 mode={mode}
-                direction={direction}
+                prompt={study.prompt}
+                typing={study.typing}
                 stamps={[L.leftStamp, L.rightStamp]}
               />
             ))
@@ -235,7 +298,7 @@ export default function DeckView({ mode, direction, groupIndex, known: learned, 
         </button>
       </div>
       <p className="mt-4 hidden text-center text-xs text-slate-500 sm:block">
-        Keyboard: ← {L.left.toLowerCase()} · → {L.right.toLowerCase()} · space flip · Z undo · Esc back
+        Keyboard: ← {L.left.toLowerCase()} · → {L.right.toLowerCase()} · space flip{study.typing ? ' · Enter check / next' : ''} · Z undo · Esc back
       </p>
     </div>
   )

@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { POS_LABELS } from '../lib/words'
 import { canSpeak, speak } from '../lib/speech'
+import { checkTyped } from '../lib/srs'
 
 const SWIPE_RATIO = 0.42 // drag this share of the card's width to commit a swipe
 const MIN_SWIPE = 150 // px, floor for narrow cards
@@ -29,7 +30,8 @@ function GenderPill({ word }) {
 
 function SpeakButton({ text, label, size = 'md' }) {
   if (!canSpeak) return null
-  const dims = size === 'sm' ? 'h-9 w-9' : 'h-11 w-11'
+  const dims = size === 'sm' ? 'h-9 w-9' : size === 'lg' ? 'h-24 w-24' : 'h-11 w-11'
+  const icon = size === 'lg' ? 'h-10 w-10' : 'h-5 w-5'
   return (
     <button
       type="button"
@@ -42,7 +44,7 @@ function SpeakButton({ text, label, size = 'md' }) {
       }}
       className={`${dims} shrink-0 grid place-items-center rounded-full bg-indigo-500/15 text-indigo-200 ring-1 ring-indigo-400/30 transition hover:bg-indigo-500/30 active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300`}
     >
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <svg viewBox="0 0 24 24" className={icon} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M11 5 6 9H3v6h3l5 4V5z" fill="currentColor" fillOpacity=".25" />
         <path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" />
       </svg>
@@ -50,11 +52,65 @@ function SpeakButton({ text, label, size = 'md' }) {
   )
 }
 
-const SwipeCard = forwardRef(function SwipeCard({ word, depth, onSwipe, mode = 'learn', direction = 'fr-en', stamps = ['KEEP', 'LEARNED'] }, ref) {
+const VERDICTS = {
+  correct: { title: 'Correct', cls: 'bg-emerald-500/15 text-emerald-100 ring-emerald-400/40' },
+  accents: { title: 'Almost: check the accents', cls: 'bg-amber-500/15 text-amber-100 ring-amber-400/40' },
+  article: { title: 'Watch the article (le, la, l’…)', cls: 'bg-amber-500/15 text-amber-100 ring-amber-400/40' },
+  wrong: { title: 'Not quite', cls: 'bg-rose-500/15 text-rose-100 ring-rose-400/40' },
+}
+
+function Verdict({ result }) {
+  const v = VERDICTS[result.verdict]
+  return (
+    <div className={`rounded-2xl px-4 py-3 text-sm ring-1 ${v.cls}`} role="status">
+      <p className="font-medium">{v.title}</p>
+      {result.verdict !== 'correct' && (
+        <p className="mt-0.5 text-xs opacity-80">
+          {result.typed ? <>You typed <span className="font-mono">{result.typed}</span> · </> : null}Enter or ← to see it again, → if you knew it
+        </p>
+      )}
+    </div>
+  )
+}
+
+function AnswerInput({ inputRef, placeholder, onSubmit }) {
+  const [value, setValue] = useState('')
+  return (
+    <form
+      className="flex w-full gap-2"
+      onPointerDown={(e) => e.stopPropagation()}
+      onSubmit={(e) => {
+        e.preventDefault()
+        onSubmit(value)
+      }}
+    >
+      <input
+        ref={inputRef}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder={placeholder}
+        aria-label={placeholder}
+        autoCapitalize="off"
+        autoCorrect="off"
+        autoComplete="off"
+        spellCheck={false}
+        lang="fr"
+        className="min-w-0 flex-1 rounded-xl bg-slate-950/60 px-4 py-3 text-[16px] text-white ring-1 ring-white/10 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+      />
+      <button className="shrink-0 rounded-xl bg-indigo-500 px-4 text-sm font-medium text-white hover:bg-indigo-400">Check</button>
+    </form>
+  )
+}
+
+const SwipeCard = forwardRef(function SwipeCard({ word, depth, onSwipe, mode = 'learn', prompt = 'fr', typing = false, stamps = ['KEEP', 'LEARNED'] }, ref) {
+  // prompt: what the front shows. 'fr' the French word, 'en' the English (recall the French),
+  // 'audio' only the pronunciation (listening). With typing, you type the French to answer.
   const isTop = depth === 0
   const isExam = mode === 'exam'
-  const enFirst = isExam && direction === 'en-fr'
+  const enFirst = prompt !== 'fr'
   const [flipped, setFlipped] = useState(false)
+  const [result, setResult] = useState(null) // typing: { verdict, typed }
+  const inputRef = useRef(null)
   const [drag, setDrag] = useState({ x: 0, y: 0 })
   const [dragging, setDragging] = useState(false)
   const [leaving, setLeaving] = useState(0) // -1 left, 1 right
@@ -71,7 +127,35 @@ const SwipeCard = forwardRef(function SwipeCard({ word, depth, onSwipe, mode = '
     setTimeout(() => onSwipe(dir), FLY_MS)
   }
 
-  useImperativeHandle(ref, () => ({ fly, flip: () => setFlipped((f) => !f) }))
+  const submit = (typed) => {
+    if (result || leaving) return
+    const verdict = checkTyped(typed, word.fr)
+    setResult({ verdict, typed: typed.trim() })
+    setFlipped(true)
+    inputRef.current?.blur()
+    if (verdict === 'correct') setTimeout(() => fly(1), 1100)
+  }
+
+  useImperativeHandle(ref, () => ({
+    fly,
+    flip: () => setFlipped((f) => !f),
+    // Enter: after a typed answer, move on (a miss comes back soon); otherwise flip
+    enter: () => (result ? fly(result.verdict === 'correct' ? 1 : -1) : setFlipped((f) => !f)),
+  }))
+
+  // Listening: play the word as soon as the card reaches the top
+  useEffect(() => {
+    if (!isTop || prompt !== 'audio') return
+    const t = setTimeout(() => speak(word.fr), 350)
+    return () => clearTimeout(t)
+  }, [isTop, prompt, word.fr])
+
+  // Typing: put the cursor in the answer box when the card reaches the top
+  useEffect(() => {
+    if (!isTop || !typing) return
+    const t = setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 300)
+    return () => clearTimeout(t)
+  }, [isTop, typing])
 
   const onPointerDown = (e) => {
     if (!isTop || leaving || (e.pointerType === 'mouse' && e.button !== 0)) return
@@ -119,7 +203,7 @@ const SwipeCard = forwardRef(function SwipeCard({ word, depth, onSwipe, mode = '
     const node = el.current
     if (!node || !isTop) return
     const stop = (e) => {
-      if (e.target.closest?.('button')) return // let the speaker buttons get their tap
+      if (e.target.closest?.('button,input,form')) return // let the speaker buttons and answer box get their tap
       if (e.cancelable) e.preventDefault()
     }
     node.addEventListener('touchmove', stop, { passive: false })
@@ -181,13 +265,25 @@ const SwipeCard = forwardRef(function SwipeCard({ word, depth, onSwipe, mode = '
               </div>
             </div>
 
-            {enFirst ? (
+            {prompt === 'audio' ? (
+              <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
+                <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-indigo-300/80">Listen</span>
+                {isTop && canSpeak ? (
+                  <SpeakButton text={word.fr} label="Play the word again" size="lg" />
+                ) : (
+                  <p className="text-sm text-slate-400">{canSpeak ? '' : 'This browser can’t play audio. Tap to reveal the word.'}</p>
+                )}
+                <p className="text-sm text-slate-400">{typing ? 'Type what you hear' : 'What did you hear? Tap to reveal'}</p>
+                {isTop && typing && <AnswerInput inputRef={inputRef} placeholder="Type the French" onSubmit={submit} />}
+              </div>
+            ) : enFirst ? (
               <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
                 <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-amber-300/70">English</span>
                 <h2 className="font-display text-[clamp(1.7rem,7vw,2.4rem)] font-semibold leading-tight text-white [text-wrap:balance] break-words max-w-full">
                   {word.en}
                 </h2>
-                <p className="text-sm text-slate-400">What is it in French?</p>
+                <p className="text-sm text-slate-400">{typing ? 'Type it in French, with le / la for nouns' : 'What is it in French?'}</p>
+                {isTop && typing && <AnswerInput inputRef={inputRef} placeholder="Type the French" onSubmit={submit} />}
               </div>
             ) : (
               <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
@@ -204,7 +300,7 @@ const SwipeCard = forwardRef(function SwipeCard({ word, depth, onSwipe, mode = '
 
             <div className="flex items-center justify-between gap-3 text-xs text-slate-500">
               <span className="truncate">{word.section}</span>
-              <span className="shrink-0">{isExam ? 'Tap to reveal' : 'Tap to flip'}</span>
+              <span className="shrink-0">{typing ? 'Tap to give up' : isExam || enFirst ? 'Tap to reveal' : 'Tap to flip'}</span>
             </div>
           </div>
 
@@ -224,6 +320,7 @@ const SwipeCard = forwardRef(function SwipeCard({ word, depth, onSwipe, mode = '
               </div>
             </div>
             <div className="flex flex-1 flex-col justify-center gap-6 overflow-y-auto py-2">
+              {result && <Verdict result={result} />}
               {enFirst ? (
                 <div className="flex flex-col items-center gap-2 text-center">
                   <p className="font-display text-[clamp(1.7rem,7vw,2.4rem)] font-semibold leading-tight text-white [text-wrap:balance] break-words max-w-full">
