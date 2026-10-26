@@ -20,3 +20,101 @@ body {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
 }
+
+/* Liquid glass look, switched on from Profile → Settings (adds .theme-glass to <html>).
+   Rather than a second set of classes in every component, it restyles the dark theme's
+   surface utilities: slate panels become frosted glass over a colourful backdrop. */
+.theme-glass body {
+  background: #0b0a24;
+}
+.theme-glass body::before {
+  content: '';
+  position: fixed;
+  inset: -10%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(40% 35% at 10% 8%, rgba(99, 102, 241, 0.85), transparent 70%),
+    radial-gradient(35% 30% at 85% 28%, rgba(217, 70, 239, 0.7), transparent 70%),
+    radial-gradient(35% 30% at 12% 62%, rgba(245, 158, 11, 0.55), transparent 70%),
+    radial-gradient(40% 35% at 88% 82%, rgba(20, 184, 166, 0.65), transparent 70%),
+    radial-gradient(30% 25% at 50% 48%, rgba(59, 130, 246, 0.45), transparent 70%);
+}
+
+/* The glass material: translucent fill, blur, a bright top edge and a soft drop shadow */
+.theme-glass :is(.bg-slate-900, .bg-slate-800, .bg-slate-700, .bg-slate-900\/90, .bg-slate-800\/95, .bg-slate-800\/80, .bg-slate-800\/60, .bg-slate-700\/70) {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.17), rgba(255, 255, 255, 0.05));
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 12px 32px rgba(12, 8, 48, 0.3);
+}
+.theme-glass :is(.hover\:bg-slate-700, .hover\:bg-slate-800, .hover\:bg-slate-800\/80, .hover\:bg-slate-800\/60):hover,
+.theme-glass .group:hover .group-hover\:bg-slate-700 {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.1));
+}
+
+/* Tinted panels (guide cards, exam sections, card faces) keep their colour, now see-through */
+.theme-glass :is(.to-slate-900, .from-slate-800, .from-indigo-950) {
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 12px 32px rgba(12, 8, 48, 0.3);
+}
+.theme-glass .to-slate-900 {
+  --tw-gradient-to: rgba(255, 255, 255, 0.05) var(--tw-gradient-to-position);
+}
+.theme-glass .from-slate-800 {
+  --tw-gradient-from: rgba(255, 255, 255, 0.2) var(--tw-gradient-from-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+.theme-glass .from-indigo-950 {
+  --tw-gradient-from: rgba(165, 180, 252, 0.3) var(--tw-gradient-from-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+.theme-glass .shadow-2xl {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 30px 60px -12px rgba(12, 8, 48, 0.55);
+}
+
+/* Wells inside a glass panel: a darker, recessed pane (no second blur) */
+.theme-glass :is(.bg-slate-950\/40, .bg-slate-950\/50, .bg-slate-950\/60) {
+  background: rgba(10, 8, 40, 0.28);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.25), inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+/* Progress tracks stay thin and flat */
+.theme-glass :is(.bg-slate-800, .bg-slate-700).rounded-full.overflow-hidden {
+  background: rgba(255, 255, 255, 0.14);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+/* Primary buttons and avatars: indigo-tinted glass */
+.theme-glass .bg-indigo-500 {
+  background: linear-gradient(135deg, rgba(129, 140, 248, 0.8), rgba(99, 102, 241, 0.55));
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: inset 0 0 0 1px rgba(224, 231, 255, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 8px 24px rgba(12, 8, 48, 0.3);
+}
+.theme-glass .hover\:bg-indigo-400:hover {
+  background: linear-gradient(135deg, rgba(165, 180, 252, 0.85), rgba(129, 140, 248, 0.6));
+}
+
+/* Muted text gets lighter so it stays readable over the colours */
+.theme-glass .text-slate-400 {
+  color: rgba(255, 255, 255, 0.76);
+}
+.theme-glass .text-slate-500 {
+  color: rgba(255, 255, 255, 0.64);
+}
+
+/* Glass is see-through, so the cards waiting under the top one would show their edges and
+   words through it. They barely peek out anyway, so in this look only the top card is drawn. */
+.theme-glass [data-depth]:not([data-depth='0']) {
+  visibility: hidden;
+}
+
+/* Glass covers the ring utilities, so focus shows as an outline instead */
+.theme-glass *:focus-visible {
+  outline: 2px solid rgba(224, 231, 255, 0.9);
+  outline-offset: 2px;
+}

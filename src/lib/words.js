@@ -41,3 +41,5 @@ export const POS_LABELS = {
 }
 
 export const fmt = (n) => n.toLocaleString('en-US')
+
+export const WORD_BY_ID = Object.fromEntries(WORDS.map((w) => [w.id, w]))

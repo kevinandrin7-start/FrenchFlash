@@ -7,6 +7,7 @@ import SampleExams from './components/SampleExams'
 import Welcome from './components/Welcome'
 import { useAccount } from './lib/account'
 import { useProgress } from './lib/progress'
+import { dueIds } from './lib/srs'
 import { usePref } from './lib/storage'
 import { GROUPS } from './lib/words'
 
@@ -15,11 +16,21 @@ export default function App() {
   const account = useAccount(progress)
   const [mode, setMode] = usePref('tcf-flashcards:mode', 'learn')
   const [direction, setDirection] = usePref('tcf-flashcards:direction', 'fr-en')
+  const [theme, setTheme] = usePref('tcf-flashcards:theme', 'classic')
+  // Study modes, switched in Profile → Settings
+  const [reverse, setReverse] = usePref('tcf-flashcards:reverse', 'off')
+  const [typing, setTyping] = usePref('tcf-flashcards:typing', 'off')
+  const [listen, setListen] = usePref('tcf-flashcards:listen', 'off')
   const [groupIndex, setGroupIndex] = useState(null)
   const [showAccount, setShowAccount] = useState(false)
   const [showGuide, setShowGuide] = useState(false)
   const [showExams, setShowExams] = useState(false)
   const [batchFilter, setBatchFilter] = useState(0)
+
+  // The liquid glass look is a class on <html>; index.css restyles the app's surfaces under it
+  useEffect(() => {
+    document.documentElement.classList.toggle('theme-glass', theme === 'glass')
+  }, [theme])
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -50,8 +61,21 @@ export default function App() {
     [learnedIds]
   )
 
+  const due = useMemo(() => dueIds(learnedIds, progress.srs), [learnedIds, progress.srs])
+
   const isExam = mode === 'exam'
   const list = isExam ? progress[direction] : progress.learned
+
+  // What the card front shows: listening hides the word; reverse and typing show the English.
+  // In Exam mode the chosen direction decides between French and English.
+  const prompt = listen === 'on' ? 'audio' : isExam ? (direction === 'en-fr' ? 'en' : 'fr') : reverse === 'on' || typing === 'on' ? 'en' : 'fr'
+  const study = { prompt, typing: typing === 'on' && prompt !== 'fr' }
+  const settings = {
+    reverse: reverse === 'on',
+    typing: typing === 'on',
+    listen: listen === 'on',
+    set: (key, on) => ({ reverse: setReverse, typing: setTyping, listen: setListen })[key](on ? 'on' : 'off'),
+  }
   const available = isExam ? completed : GROUPS.map((g) => g.index)
 
   const open = (i) => setGroupIndex(i)
@@ -67,6 +91,9 @@ export default function App() {
       <AccountPanel
         account={account}
         progress={progress}
+        theme={theme}
+        setTheme={setTheme}
+        settings={settings}
         onOpenGuide={() => setShowGuide(true)}
         onOpenExams={() => setShowExams(true)}
         onBack={() => {
@@ -81,10 +108,12 @@ export default function App() {
     const nextIndex = available.find((i) => i > groupIndex) ?? null
     return (
       <DeckView
-        key={`${mode}-${direction}-${groupIndex}`}
+        key={`${mode}-${direction}-${groupIndex}-${prompt}-${study.typing}`}
         mode={mode}
         direction={direction}
+        study={study}
         groupIndex={groupIndex}
+        progress={progress}
         known={list.ids}
         markKnown={list.mark}
         unmark={list.unmark}
@@ -105,6 +134,8 @@ export default function App() {
       known={list.ids}
       available={available}
       onOpen={open}
+      due={isExam ? null : due}
+      stats={progress.stats}
       batch={batchFilter}
       setBatch={setBatchFilter}
       account={account}

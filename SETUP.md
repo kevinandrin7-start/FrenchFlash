@@ -7,6 +7,8 @@ Without Supabase keys the app still runs, with progress saved only in the browse
 ## 1. Supabase (free plan)
 1. Create an account at https://supabase.com and a **New project** (any name, pick a region near you, save the database password somewhere).
 2. **SQL Editor → New query**: paste `supabase/schema.sql`, click **Run**.
+   Already set up from an earlier version? Run only the two `alter table` lines at the end of that file,
+   so review schedules and streaks save to accounts too. Until then they are kept on each device.
 3. **Project Settings → API**: copy the **Project URL** and the **anon public** key.
    The anon key is meant to be public; the table's row-level security keeps each user's data private.
    Never share the `service_role` key.

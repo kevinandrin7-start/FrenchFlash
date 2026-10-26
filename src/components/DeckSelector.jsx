@@ -1,7 +1,10 @@
 import { useMemo } from 'react'
 import { BATCHES, GROUPS, GROUP_SIZE, WORDS, fmt } from '../lib/words'
+import { doneOn, goalOf, streak } from '../lib/srs'
 
-function GroupCard({ group, count, onOpen, unit }) {
+const LEVEL_OF = Object.fromEntries(GROUPS.flatMap((g) => g.ids.map((id) => [id, g.index])))
+
+function GroupCard({ group, count, due, onOpen, unit }) {
   const pct = (count / GROUP_SIZE) * 100
   const complete = count === GROUP_SIZE
   const started = count > 0
@@ -15,7 +18,7 @@ function GroupCard({ group, count, onOpen, unit }) {
       }`}
     >
       <div className="flex items-baseline justify-between gap-2">
-        <span className="font-display text-lg font-semibold text-white tabular">Group {group.index}</span>
+        <span className="font-display text-lg font-semibold text-white tabular">Level {group.index}</span>
         <span className="font-mono text-[11px] text-slate-500 tabular">
           {fmt(group.from)}–{fmt(group.to)}
         </span>
@@ -32,7 +35,11 @@ function GroupCard({ group, count, onOpen, unit }) {
           <span className={complete ? 'font-medium text-emerald-300' : started ? 'text-slate-200' : 'text-slate-500'}>
             {count} / {GROUP_SIZE} {unit}
           </span>
-          {complete && <span className="text-emerald-300" aria-label="Complete">✓</span>}
+          {due > 0 ? (
+            <span className="shrink-0 whitespace-nowrap rounded-full bg-amber-400/15 px-2 py-0.5 text-[11px] font-medium text-amber-200 ring-1 ring-amber-300/30" title="Learned words due for review">{due} due</span>
+          ) : (
+            complete && <span className="text-emerald-300" aria-label="Complete">✓</span>
+          )}
         </div>
       </div>
     </button>
@@ -92,9 +99,50 @@ function AccountButton({ account, onClick }) {
   )
 }
 
-export default function DeckSelector({ mode, setMode, direction, setDirection, known, available, onOpen, batch, setBatch, account, onAccount }) {
+// Streak and today's progress toward the daily goal
+function StudyStrip({ stats }) {
+  const goal = goalOf(stats)
+  const today = doneOn(stats)
+  const days = streak(stats)
+  const met = today >= goal
+  const pct = Math.min(100, (today / goal) * 100)
+  return (
+    <section aria-label="Daily study" className="mt-6 grid grid-cols-2 gap-3">
+      <div className="flex items-center gap-3 rounded-2xl bg-slate-900 p-4 ring-1 ring-white/[0.07]">
+        <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl text-2xl ${days ? 'bg-orange-500/20' : 'bg-slate-800 grayscale'}`} aria-hidden="true">
+          🔥
+        </span>
+        <div className="min-w-0">
+          <p className="font-display text-2xl font-semibold leading-none text-white tabular">{days}</p>
+          <p className="mt-1 text-xs text-slate-400">day streak</p>
+        </div>
+      </div>
+      <div className="rounded-2xl bg-slate-900 p-4 ring-1 ring-white/[0.07]">
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="text-xs uppercase tracking-wider text-slate-400">Today</span>
+          {met && <span className="text-xs font-medium text-emerald-300">Goal met ✓</span>}
+        </div>
+        <p className="mt-1 font-display text-2xl font-semibold leading-none text-white tabular">
+          {today}
+          <span className="text-sm font-normal text-slate-500"> / {goal} cards</span>
+        </p>
+        <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-slate-800">
+          <div className={`h-full rounded-full transition-[width] duration-500 ${met ? 'bg-emerald-400' : 'bg-gradient-to-r from-orange-400 to-amber-300'}`} style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+    </section>
+  )
+}
+
+export default function DeckSelector({ mode, setMode, direction, setDirection, known, available, onOpen, batch, setBatch, account, onAccount, stats, due }) {
   const isExam = mode === 'exam'
   const unit = isExam ? 'correct' : 'mastered'
+  // Learned words due for spaced-repetition review, per level (they reappear inside their level)
+  const dueCounts = useMemo(() => {
+    const n = {}
+    for (const id of due || []) n[LEVEL_OF[id]] = (n[LEVEL_OF[id]] || 0) + 1
+    return n
+  }, [due])
   const counts = useMemo(() => GROUPS.map((g) => g.ids.reduce((n, id) => n + (known.has(id) ? 1 : 0), 0)), [known])
   const pool = GROUPS.filter((g) => available.includes(g.index))
   const poolWords = pool.length * GROUP_SIZE
@@ -133,9 +181,9 @@ export default function DeckSelector({ mode, setMode, direction, setDirection, k
           <p className="mt-3 max-w-md text-sm leading-relaxed text-slate-400">
             {isExam
               ? direction === 'fr-en'
-                ? 'See the French, recall the English. Only groups you have fully learned appear here. Swipe right if you got it, left to try again.'
-                : 'See the English, recall the French. Only groups you have fully learned appear here. Swipe right if you got it, left to try again.'
-              : '6,250 words in 125 decks of 50. Swipe right when you know a word, left to see it again.'}
+                ? 'See the French, recall the English. Only levels you have fully learned appear here. Swipe right if you got it, left to try again.'
+                : 'See the English, recall the French. Only levels you have fully learned appear here. Swipe right if you got it, left to try again.'
+              : '6,250 words in 125 levels of 50. Swipe right when you know a word, left to see it again.'}
           </p>
         </div>
 
@@ -143,7 +191,7 @@ export default function DeckSelector({ mode, setMode, direction, setDirection, k
           <div className="flex items-baseline justify-between">
             <span className="text-xs uppercase tracking-wider text-slate-400">{isExam ? 'Correct' : 'Mastered'}</span>
             <span className="text-xs text-slate-500 tabular">
-              {groupsDone} / {pool.length} {isExam ? 'passed' : 'decks'}
+              {groupsDone} / {pool.length} {isExam ? 'passed' : 'levels'}
             </span>
           </div>
           <p className="mt-1 font-display text-3xl font-semibold text-white tabular">
@@ -165,17 +213,19 @@ export default function DeckSelector({ mode, setMode, direction, setDirection, k
                   : 'bg-indigo-500 text-white hover:bg-indigo-400 focus-visible:ring-indigo-300'
               }`}
             >
-              {counts[resume.index - 1] > 0 ? 'Continue' : 'Start'} {isExam ? 'exam for ' : ''}group {resume.index}
+              {counts[resume.index - 1] > 0 ? 'Continue' : 'Start'} {isExam ? 'exam for ' : ''}level {resume.index}
             </button>
           )}
         </div>
       </header>
 
+      <StudyStrip stats={stats} />
+
       {isExam && pool.length === 0 ? (
         <div className="mt-10 rounded-2xl bg-slate-900 p-8 text-center ring-1 ring-white/[0.07]">
-          <h2 className="font-display text-2xl font-semibold text-white">No groups to test yet</h2>
+          <h2 className="font-display text-2xl font-semibold text-white">No levels to test yet</h2>
           <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-slate-400">
-            A group appears here once all 50 of its words are marked learned in Learning mode.
+            A level appears here once all 50 of its words are marked learned in Learning mode.
           </p>
           <button
             onClick={() => setMode('learn')}
@@ -187,7 +237,7 @@ export default function DeckSelector({ mode, setMode, direction, setDirection, k
       ) : (
         <>
           <nav className="-mx-1 mt-8 flex gap-2 overflow-x-auto px-1 pb-2" aria-label="Filter by batch">
-            {[{ n: 0, name: isExam ? `All unlocked (${pool.length})` : 'All 125 decks' }, ...BATCHES]
+            {[{ n: 0, name: isExam ? `All unlocked (${pool.length})` : 'All 125 levels' }, ...BATCHES]
               .filter((b) => !b.n || pool.some((g) => g.batch === b.n))
               .map((b) => {
                 const active = batch === b.n
@@ -214,15 +264,15 @@ export default function DeckSelector({ mode, setMode, direction, setDirection, k
 
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {shown.map((g) => (
-              <GroupCard key={g.index} group={g} count={counts[g.index - 1]} onOpen={onOpen} unit={unit} />
+              <GroupCard key={g.index} group={g} count={counts[g.index - 1]} due={dueCounts[g.index] || 0} onOpen={onOpen} unit={unit} />
             ))}
           </div>
-          {shown.length === 0 && <p className="mt-6 text-sm text-slate-500">No completed groups in this batch yet.</p>}
+          {shown.length === 0 && <p className="mt-6 text-sm text-slate-500">No completed levels in this batch yet.</p>}
         </>
       )}
 
       <footer className="mt-12 text-xs leading-relaxed text-slate-500">
-        Word list, pronunciation cues and meanings from your <em>French Vocabulary for the TCF Exam</em> guide. {account?.user ? 'Learning and exam progress are saved to your account.' : 'Learning and exam progress are saved separately in this browser.'}
+        Word list, pronunciation cues and meanings from the <em>French Vocabulary for the TCF Exam</em> guide. {account?.user ? 'Learning and exam progress are saved to your account.' : 'Learning and exam progress are saved separately in this browser.'}
       </footer>
     </div>
   )
