@@ -142,6 +142,7 @@ const SwipeCard = forwardRef(function SwipeCard({ word, depth, onSwipe, mode = '
   return (
     <div
       ref={el}
+      data-depth={depth}
       className={`absolute inset-0 select-none touch-none ${isTop ? 'cursor-grab active:cursor-grabbing' : 'pointer-events-none'}`}
       style={{
         transform,

@@ -15,11 +15,17 @@ export default function App() {
   const account = useAccount(progress)
   const [mode, setMode] = usePref('tcf-flashcards:mode', 'learn')
   const [direction, setDirection] = usePref('tcf-flashcards:direction', 'fr-en')
+  const [theme, setTheme] = usePref('tcf-flashcards:theme', 'classic')
   const [groupIndex, setGroupIndex] = useState(null)
   const [showAccount, setShowAccount] = useState(false)
   const [showGuide, setShowGuide] = useState(false)
   const [showExams, setShowExams] = useState(false)
   const [batchFilter, setBatchFilter] = useState(0)
+
+  // The liquid glass look is a class on <html>; index.css restyles the app's surfaces under it
+  useEffect(() => {
+    document.documentElement.classList.toggle('theme-glass', theme === 'glass')
+  }, [theme])
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -67,6 +73,8 @@ export default function App() {
       <AccountPanel
         account={account}
         progress={progress}
+        theme={theme}
+        setTheme={setTheme}
         onOpenGuide={() => setShowGuide(true)}
         onOpenExams={() => setShowExams(true)}
         onBack={() => {
