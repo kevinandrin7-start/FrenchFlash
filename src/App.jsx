@@ -7,7 +7,7 @@ import SampleExams from './components/SampleExams'
 import Welcome from './components/Welcome'
 import { useAccount } from './lib/account'
 import { useProgress } from './lib/progress'
-import { dueIds, REVIEW_SESSION } from './lib/srs'
+import { dueIds } from './lib/srs'
 import { usePref } from './lib/storage'
 import { GROUPS } from './lib/words'
 
@@ -21,7 +21,6 @@ export default function App() {
   const [reverse, setReverse] = usePref('tcf-flashcards:reverse', 'off')
   const [typing, setTyping] = usePref('tcf-flashcards:typing', 'off')
   const [listen, setListen] = usePref('tcf-flashcards:listen', 'off')
-  const [reviewIds, setReviewIds] = useState([])
   const [groupIndex, setGroupIndex] = useState(null)
   const [showAccount, setShowAccount] = useState(false)
   const [showGuide, setShowGuide] = useState(false)
@@ -80,11 +79,6 @@ export default function App() {
   const available = isExam ? completed : GROUPS.map((g) => g.index)
 
   const open = (i) => setGroupIndex(i)
-  // Review takes a snapshot of what's due, so the deck doesn't shift while you swipe
-  const openReview = () => {
-    setReviewIds(due.slice(0, REVIEW_SESSION))
-    setGroupIndex('review')
-  }
 
   // With accounts switched on, nothing is reachable until you sign in
   if (account.enabled && !account.user && !account.recovering) return <Welcome account={account} />
@@ -119,13 +113,12 @@ export default function App() {
         direction={direction}
         study={study}
         groupIndex={groupIndex}
-        reviewIds={reviewIds}
         progress={progress}
         known={list.ids}
         markKnown={list.mark}
         unmark={list.unmark}
         resetIds={list.resetIds}
-        nextIndex={groupIndex === 'review' ? null : nextIndex}
+        nextIndex={nextIndex}
         onBack={() => setGroupIndex(null)}
         onOpenGroup={open}
       />
@@ -141,8 +134,7 @@ export default function App() {
       known={list.ids}
       available={available}
       onOpen={open}
-      dueCount={due.length}
-      onReview={openReview}
+      due={isExam ? null : due}
       stats={progress.stats}
       batch={batchFilter}
       setBatch={setBatchFilter}

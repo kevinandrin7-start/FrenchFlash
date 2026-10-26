@@ -2,7 +2,9 @@ import { useMemo } from 'react'
 import { BATCHES, GROUPS, GROUP_SIZE, WORDS, fmt } from '../lib/words'
 import { doneOn, goalOf, streak } from '../lib/srs'
 
-function GroupCard({ group, count, onOpen, unit }) {
+const LEVEL_OF = Object.fromEntries(GROUPS.flatMap((g) => g.ids.map((id) => [id, g.index])))
+
+function GroupCard({ group, count, due, onOpen, unit }) {
   const pct = (count / GROUP_SIZE) * 100
   const complete = count === GROUP_SIZE
   const started = count > 0
@@ -33,7 +35,11 @@ function GroupCard({ group, count, onOpen, unit }) {
           <span className={complete ? 'font-medium text-emerald-300' : started ? 'text-slate-200' : 'text-slate-500'}>
             {count} / {GROUP_SIZE} {unit}
           </span>
-          {complete && <span className="text-emerald-300" aria-label="Complete">✓</span>}
+          {due > 0 ? (
+            <span className="shrink-0 whitespace-nowrap rounded-full bg-amber-400/15 px-2 py-0.5 text-[11px] font-medium text-amber-200 ring-1 ring-amber-300/30" title="Learned words due for review">{due} due</span>
+          ) : (
+            complete && <span className="text-emerald-300" aria-label="Complete">✓</span>
+          )}
         </div>
       </div>
     </button>
@@ -93,15 +99,15 @@ function AccountButton({ account, onClick }) {
   )
 }
 
-// Streak, today's progress toward the daily goal, and the spaced-repetition review
-function StudyStrip({ stats, dueCount, onReview }) {
+// Streak and today's progress toward the daily goal
+function StudyStrip({ stats }) {
   const goal = goalOf(stats)
   const today = doneOn(stats)
   const days = streak(stats)
   const met = today >= goal
   const pct = Math.min(100, (today / goal) * 100)
   return (
-    <section aria-label="Daily study" className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+    <section aria-label="Daily study" className="mt-6 grid grid-cols-2 gap-3">
       <div className="flex items-center gap-3 rounded-2xl bg-slate-900 p-4 ring-1 ring-white/[0.07]">
         <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl text-2xl ${days ? 'bg-orange-500/20' : 'bg-slate-800 grayscale'}`} aria-hidden="true">
           🔥
@@ -124,30 +130,19 @@ function StudyStrip({ stats, dueCount, onReview }) {
           <div className={`h-full rounded-full transition-[width] duration-500 ${met ? 'bg-emerald-400' : 'bg-gradient-to-r from-orange-400 to-amber-300'}`} style={{ width: `${pct}%` }} />
         </div>
       </div>
-      <button
-        onClick={onReview}
-        disabled={!dueCount}
-        className="col-span-2 flex items-center gap-3 rounded-2xl bg-slate-900 p-4 text-left ring-1 ring-white/[0.07] transition enabled:hover:bg-slate-800 enabled:hover:ring-indigo-400/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 sm:col-span-1"
-      >
-        <span className="min-w-0 flex-1">
-          <span className="block text-xs uppercase tracking-wider text-slate-400">Review</span>
-          <span className="mt-1 block font-display text-2xl font-semibold leading-none text-white tabular">
-            {fmt(dueCount)}
-            <span className="text-sm font-normal text-slate-500"> due</span>
-          </span>
-          <span className="mt-1.5 block text-xs text-slate-500">{dueCount ? 'Learned words ready to see again' : 'Nothing due. Learned words come back here.'}</span>
-        </span>
-        {dueCount > 0 && (
-          <span className="shrink-0 rounded-full bg-indigo-500 px-4 py-2 text-sm font-medium text-white">Review</span>
-        )}
-      </button>
     </section>
   )
 }
 
-export default function DeckSelector({ mode, setMode, direction, setDirection, known, available, onOpen, batch, setBatch, account, onAccount, stats, dueCount, onReview }) {
+export default function DeckSelector({ mode, setMode, direction, setDirection, known, available, onOpen, batch, setBatch, account, onAccount, stats, due }) {
   const isExam = mode === 'exam'
   const unit = isExam ? 'correct' : 'mastered'
+  // Learned words due for spaced-repetition review, per level (they reappear inside their level)
+  const dueCounts = useMemo(() => {
+    const n = {}
+    for (const id of due || []) n[LEVEL_OF[id]] = (n[LEVEL_OF[id]] || 0) + 1
+    return n
+  }, [due])
   const counts = useMemo(() => GROUPS.map((g) => g.ids.reduce((n, id) => n + (known.has(id) ? 1 : 0), 0)), [known])
   const pool = GROUPS.filter((g) => available.includes(g.index))
   const poolWords = pool.length * GROUP_SIZE
@@ -224,7 +219,7 @@ export default function DeckSelector({ mode, setMode, direction, setDirection, k
         </div>
       </header>
 
-      <StudyStrip stats={stats} dueCount={dueCount} onReview={onReview} />
+      <StudyStrip stats={stats} />
 
       {isExam && pool.length === 0 ? (
         <div className="mt-10 rounded-2xl bg-slate-900 p-8 text-center ring-1 ring-white/[0.07]">
@@ -269,7 +264,7 @@ export default function DeckSelector({ mode, setMode, direction, setDirection, k
 
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {shown.map((g) => (
-              <GroupCard key={g.index} group={g} count={counts[g.index - 1]} onOpen={onOpen} unit={unit} />
+              <GroupCard key={g.index} group={g} count={counts[g.index - 1]} due={dueCounts[g.index] || 0} onOpen={onOpen} unit={unit} />
             ))}
           </div>
           {shown.length === 0 && <p className="mt-6 text-sm text-slate-500">No completed levels in this batch yet.</p>}

@@ -8,7 +8,6 @@ export const INTERVALS = [0, 1, 3, 7, 16, 35, 80]
 const MAX_BOX = INTERVALS.length - 1
 
 export const DEFAULT_GOAL = 50
-export const REVIEW_SESSION = 50 // cards per review session
 export const AGAIN_GAP = 3 // a missed card comes back after this many others
 
 // Words learned before spaced repetition existed have no schedule yet:
